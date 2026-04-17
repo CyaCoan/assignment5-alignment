@@ -53,3 +53,15 @@ def tokenize_prompt_and_output(
         "labels": labels,
         "response_mask": response_mask
     }
+
+def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
+
+    lse = torch.logsumexp(logits, dim=-1)
+
+    probs = F.softmax(logits, dim=-1)
+
+    exp_logits = torch.sum(probs * logits, dim=-1)
+
+    entropy = lse - exp_logits
+
+    return entropy
