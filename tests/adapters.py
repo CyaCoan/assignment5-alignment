@@ -120,6 +120,7 @@ def run_get_response_log_probs(
     """
     from cs336_alignment.sft_utils import get_response_log_probs
 
+    model.eval()
     return get_response_log_probs(model, input_ids, labels, return_token_entropy)
 
 
