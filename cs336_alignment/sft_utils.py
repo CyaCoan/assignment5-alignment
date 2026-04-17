@@ -65,3 +65,24 @@ def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
     entropy = lse - exp_logits
 
     return entropy
+
+def get_response_log_probs(
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool,
+) -> torch.Tensor:
+    
+    outputs = model(input_ids)
+    logits = outputs.logits
+
+    all_log_probs = F.log_softmax(logits, dim=-1)
+
+    log_probs = torch.gather(all_log_probs, dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)
+
+    result = {"log_probs": log_probs}
+
+    if return_token_entropy:
+        result["token_entropy"] = compute_entropy(logits)
+
+    return result
