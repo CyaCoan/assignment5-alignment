@@ -129,3 +129,86 @@ def sft_microbatch_train_step(
     metadata = {"loss": microbatch_loss_mean}
 
     return scaled_loss, metadata
+
+def log_generations(
+    vllm_model: LLM,
+    sampling_params: SamplingParams,
+    prompts: List[str],
+    ground_truths: List[str],
+    reward_fn: Callable[[str, str], Dict[str, float]],
+    step: int,
+    log_prefix: str = "eval"
+):
+    """
+    让模型生成回答并记录详细的评估指标。
+    """
+    # 1. 模型生成回答
+    # 注意：在调用此函数前，应确保已将最新的 policy 权重加载到了 vLLM 实例中
+    outputs = vllm_model.generate(prompts, sampling_params)
+    
+    table_data = []
+    
+    # 用于统计的数据
+    all_lengths = []
+    correct_lengths = []
+    incorrect_lengths = []
+    total_reward = 0
+    total_format_reward = 0
+    total_answer_reward = 0
+    
+    # 2. 逐条处理生成结果
+    for i, output in enumerate(outputs):
+        generated_text = output.outputs[0].text
+        gold_answer = ground_truths[i]
+        
+        # 计算奖励
+        scores = reward_fn(generated_text, gold_answer)
+        
+        r = scores.get("reward", 0.0)
+        fr = scores.get("format_reward", 0.0)
+        ar = scores.get("answer_reward", 0.0)
+        
+        # 计算响应长度
+        resp_len = len(generated_text)
+        all_lengths.append(resp_len)
+        
+        if r > 0.5: # 认为是正确的
+            correct_lengths.append(resp_len)
+        else:
+            incorrect_lengths.append(resp_len)
+            
+        total_reward += r
+        total_format_reward += fr
+        total_answer_reward += ar
+
+        # 准备存入 wandb Table 的数据（展示前几条即可，防止日志过大）
+        if i < 100: 
+            table_data.append([
+                step, 
+                prompts[i], # 只取 prompt 结尾部分
+                generated_text, 
+                gold_answer, 
+                r, fr, ar
+            ])
+
+    # 3. 计算聚合统计量
+    metrics = {
+        f"{log_prefix}/accuracy": total_reward / len(prompts),
+        f"{log_prefix}/format_score": total_format_reward / len(prompts),
+        f"{log_prefix}/answer_score": total_answer_reward / len(prompts),
+        f"{log_prefix}/avg_length": np.mean(all_lengths),
+        f"{log_prefix}/avg_length_correct": np.mean(correct_lengths) if correct_lengths else 0,
+        f"{log_prefix}/avg_length_incorrect": np.mean(incorrect_lengths) if incorrect_lengths else 0,
+    }
+
+    # 4. 记录到日志系统
+    if wandb.run is not None:
+        # 记录表格：方便直接在网页看具体的推理逻辑
+        columns = ["step", "prompt", "response", "ground_truth", "reward", "format_reward", "answer_reward"]
+        wandb.log({f"{log_prefix}/samples": wandb.Table(columns=columns, data=table_data)}, step=step)
+        # 记录标量数值
+        wandb.log(metrics, step=step)
+    
+    print(f"Step {step}: Accuracy: {metrics[f'{log_prefix}/accuracy']:.4f}, Avg Len: {metrics[f'{log_prefix}/avg_length']:.1f}")
+
+    return metrics
