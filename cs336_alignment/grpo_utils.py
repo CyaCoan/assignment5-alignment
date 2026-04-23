@@ -96,3 +96,34 @@ def compute_grpo_clip_loss(
         }
 
     return loss, metadata
+
+def compute_grpo_no_clip_loss(
+    advantages: torch.Tensor,
+    policy_log_probs: torch.Tensor,
+    old_log_probs: torch.Tensor,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    
+    log_ratio = policy_log_probs - old_log_probs
+    ratio = torch.exp(log_ratio)
+    
+    loss = -(ratio * advantages)
+    
+    with torch.no_grad():
+
+        surr1 = ratio * advantages
+
+        cliprange = 0.2
+        clipped_ratio = torch.clamp(ratio, 1.0 - cliprange, 1.0 + cliprange)
+        surr2 = clipped_ratio * advantages
+
+        clipped_mask = (surr2 < surr1).float()
+        clip_fraction = clipped_mask.mean()
+        
+        metadata = {
+            "ratio_mean": ratio.mean(),
+            "ratio_max": ratio.max(),
+            "ratio_min": ratio.min(),
+            "clip_fraction": clip_fraction,
+        }
+
+    return loss, metadata
