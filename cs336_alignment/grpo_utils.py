@@ -127,3 +127,65 @@ def compute_grpo_no_clip_loss(
         }
 
     return loss, metadata
+
+def compute_policy_gradient_loss(
+    policy_log_probs: torch.Tensor,
+    loss_type: Literal["no_baseline", "reinforce_with_baseline", "grpo_clip", "grpo_no_clip"],
+    raw_rewards: Optional[torch.Tensor] = None,
+    advantages: Optional[torch.Tensor] = None,
+    old_log_probs: Optional[torch.Tensor] = None,
+    cliprange: Optional[float] = None,
+) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    
+    metadata = {}
+
+    if loss_type == "no_baseline":
+
+        assert raw_rewards is not None, "no_baseline 模式必须提供 raw_rewards"
+        
+        loss = compute_naive_policy_gradient_loss(
+            raw_rewards_or_advantages=raw_rewards,
+            policy_log_probs=policy_log_probs
+        )
+
+    elif loss_type == "reinforce_with_baseline":
+        
+        assert advantages is not None, "reinforce_with_baseline 模式必须提供 advantages"
+        
+        loss = compute_naive_policy_gradient_loss(
+            raw_rewards_or_advantages=advantages,
+            policy_log_probs=policy_log_probs
+        )
+
+    elif loss_type == "grpo_clip":
+        
+        assert advantages is not None, "grpo_clip 模式必须提供 advantages"
+        assert old_log_probs is not None, "grpo_clip 模式必须提供 old_log_probs"
+        assert cliprange is not None, "grpo_clip 模式必须提供 cliprange"
+        
+        loss, grpo_metadata = compute_grpo_clip_loss(
+            advantages=advantages,
+            policy_log_probs=policy_log_probs,
+            old_log_probs=old_log_probs,
+            cliprange=cliprange
+        )
+
+        metadata.update(grpo_metadata)
+
+    elif loss_type == "grpo_no_clip":
+
+        assert advantages is not None and old_log_probs is not None
+
+        loss, grpo_metadata = compute_grpo_no_clip_loss(
+            advantages=advantages,
+            policy_log_probs=policy_log_probs,
+            old_log_probs=old_log_probs
+        )
+        
+        metadata.update(grpo_metadata)
+
+    else:
+
+        raise ValueError(f"不支持的 loss_type: {loss_type}")
+
+    return loss, metadata
