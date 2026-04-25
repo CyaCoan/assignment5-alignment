@@ -189,3 +189,16 @@ def compute_policy_gradient_loss(
         raise ValueError(f"不支持的 loss_type: {loss_type}")
 
     return loss, metadata
+
+def masked_normalize(
+    tensor: torch.Tensor,
+    mask: torch.Tensor,
+    normalize_constant: float,
+    dim: int | None = None,
+) -> torch.Tensor:
+    
+    masked_tensor = mask * tensor
+
+    total_sum = torch.sum(masked_tensor, dim=dim)
+
+    return total_sum / normalize_constant
