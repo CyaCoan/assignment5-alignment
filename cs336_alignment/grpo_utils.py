@@ -218,3 +218,52 @@ def masked_mean(
     count = torch.sum(mask, dim=dim)
 
     return total_sum / count
+
+def grpo_microbatch_train_step(
+    policy_log_probs: torch.Tensor,
+    response_mask: torch.Tensor,
+    gradient_accumulation_steps: int,
+    loss_type: Literal["no_baseline", "reinforce_with_baseline", "grpo_clip", "grpo_no_clip"],
+    raw_rewards: Optional[torch.Tensor] = None,
+    advantages: Optional[torch.Tensor] = None,
+    old_log_probs: Optional[torch.Tensor] = None,
+    cliprange: Optional[float] = None,
+    constant_normalizer: Optional[float] = None,
+    length_norm_type="mask_mean" # "mask_mean", "mask_normalize", "mask_dapo"
+) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    
+    per_token_loss, loss_metadata = compute_policy_gradient_loss(
+        policy_log_probs=policy_log_probs,
+        loss_type=loss_type,
+        raw_rewards=raw_rewards,
+        advantages=advantages,
+        old_log_probs=old_log_probs,
+        cliprange=cliprange
+    )
+
+    if length_norm_type == "mask_dapo":
+
+        total_masked_loss = (per_token_loss * response_mask).sum()
+        scaled_loss = total_masked_loss / (constant_normalizer + 1e-8)
+        microbatch_loss = scaled_loss * gradient_accumulation_steps
+
+    elif length_norm_type == "mask_normalize":
+
+        per_example_loss = (per_token_loss * response_mask).sum(dim=1) / constant_normalizer
+        microbatch_loss = per_example_loss.mean()
+        scaled_loss = microbatch_loss / gradient_accumulation_steps
+
+    else:
+
+        per_example_loss = masked_mean(per_token_loss, response_mask, dim=1)
+        microbatch_loss = per_example_loss.mean()
+        scaled_loss = microbatch_loss / gradient_accumulation_steps
+
+    scaled_loss.backward()
+    
+    metadata = {
+        "loss": microbatch_loss.detach(),
+    }
+    metadata.update(loss_metadata)
+    
+    return scaled_loss, metadata
