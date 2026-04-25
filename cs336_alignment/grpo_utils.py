@@ -202,3 +202,19 @@ def masked_normalize(
     total_sum = torch.sum(masked_tensor, dim=dim)
 
     return total_sum / normalize_constant
+
+def masked_mean(
+    tensor: torch.Tensor,
+    mask: torch.Tensor,
+    dim: Optional[int] = None,
+) -> torch.Tensor:
+    
+    mask = mask.to(tensor.dtype)
+
+    masked_tensor = mask * tensor
+
+    total_sum = torch.sum(masked_tensor, dim=dim)
+
+    count = torch.sum(mask, dim=dim)
+
+    return total_sum / count
