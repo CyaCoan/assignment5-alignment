@@ -390,7 +390,7 @@ def run_parse_mmlu_response(
         else None.
     """
     from cs336_alignment.parse_utils import parse_mmlu_response
-    
+
     return parse_mmlu_response(model_output)
 
 
@@ -408,7 +408,9 @@ def run_parse_gsm8k_response(
         str with the predicted numeric answer if the model output can be parsed into a prediction,
         else None.
     """
-    raise NotImplementedError
+    from cs336_alignment.parse_utils import parse_gsm8k_response
+    
+    return parse_gsm8k_response(model_output)
 
 
 def run_compute_per_instance_dpo_loss(
