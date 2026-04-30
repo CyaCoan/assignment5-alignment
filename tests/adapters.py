@@ -361,7 +361,9 @@ def run_iterate_batches(
     Returns:
         Iterable over batches, where each batch has size `batch_size`.
     """
-    raise NotImplementedError
+    from torch.utils.data import DataLoader
+
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
 def run_parse_mmlu_response(
