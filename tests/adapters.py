@@ -409,7 +409,7 @@ def run_parse_gsm8k_response(
         else None.
     """
     from cs336_alignment.parse_utils import parse_gsm8k_response
-    
+
     return parse_gsm8k_response(model_output)
 
 
@@ -445,4 +445,6 @@ def run_compute_per_instance_dpo_loss(
     Returns:
         torch.Tensor with the DPO loss for this example.
     """
-    raise NotImplementedError
+    from cs336_alignment.dpo_utils import compute_per_instance_dpo_loss
+
+    return compute_per_instance_dpo_loss(lm, lm_ref, tokenizer, beta, prompt, response_chosen, response_rejected)
